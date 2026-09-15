@@ -1,0 +1,376 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: insecure-demo
+  labels:
+    app: vulnerable-demo
+---
+# App 4: Spring4Shell vulnerable Spring Boot app
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-spring4shell
+  namespace: insecure-demo
+  labels:
+    app: vuln-spring4shell
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-spring4shell
+  template:
+    metadata:
+      labels:
+        app: vuln-spring4shell
+    spec:
+      containers:
+      - name: spring
+        image: docker.io/vulfocus/spring-core-rce-2022-22965:latest
+        ports:
+        - containerPort: 8080
+        securityContext:
+          runAsUser: 0
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vuln-spring4shell-svc
+  namespace: insecure-demo
+spec:
+  selector:
+    app: vuln-spring4shell
+  ports:
+  - port: 8080
+    targetPort: 8080
+---
+# App 5: Old Redis with no authentication
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-redis
+  namespace: insecure-demo
+  labels:
+    app: vuln-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-redis
+  template:
+    metadata:
+      labels:
+        app: vuln-redis
+    spec:
+      containers:
+      - name: redis
+        image: docker.io/redis:5.0.0
+        ports:
+        - containerPort: 6379
+        securityContext:
+          runAsUser: 0
+          readOnlyRootFilesystem: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vuln-redis-svc
+  namespace: insecure-demo
+spec:
+  selector:
+    app: vuln-redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+---
+# App 6: Old PostgreSQL with default credentials in env vars
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-postgres
+  namespace: insecure-demo
+  labels:
+    app: vuln-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-postgres
+  template:
+    metadata:
+      labels:
+        app: vuln-postgres
+    spec:
+      containers:
+      - name: postgres
+        image: docker.io/postgres:9.6
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_PASSWORD
+          value: "postgres123"
+        - name: POSTGRES_USER
+          value: "admin"
+        securityContext:
+          runAsUser: 0
+          readOnlyRootFilesystem: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vuln-postgres-svc
+  namespace: insecure-demo
+spec:
+  selector:
+    app: vuln-postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+---
+# App 7: Old Node.js app with prototype pollution and other CVEs
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-node
+  namespace: insecure-demo
+  labels:
+    app: vuln-node
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-node
+  template:
+    metadata:
+      labels:
+        app: vuln-node
+    spec:
+      containers:
+      - name: node
+        image: docker.io/node:10-slim
+        command: ["node", "-e", "require('http').createServer((req,res)=>{res.end('vulnerable node app')}).listen(3000)"]
+        ports:
+        - containerPort: 3000
+        securityContext:
+          runAsUser: 0
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: true
+---
+# App 8: Old Apache httpd with many CVEs
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-httpd
+  namespace: insecure-demo
+  labels:
+    app: vuln-httpd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-httpd
+  template:
+    metadata:
+      labels:
+        app: vuln-httpd
+    spec:
+      containers:
+      - name: httpd
+        image: docker.io/httpd:2.4.29
+        ports:
+        - containerPort: 80
+        securityContext:
+          runAsUser: 0
+          readOnlyRootFilesystem: false
+---
+# App 9: MongoDB with no auth - common misconfiguration
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-mongodb
+  namespace: insecure-demo
+  labels:
+    app: vuln-mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-mongodb
+  template:
+    metadata:
+      labels:
+        app: vuln-mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: docker.io/mongo:4.0
+        ports:
+        - containerPort: 27017
+        securityContext:
+          runAsUser: 0
+          readOnlyRootFilesystem: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vuln-mongodb-svc
+  namespace: insecure-demo
+spec:
+  selector:
+    app: vuln-mongodb
+  ports:
+  - port: 27017
+    targetPort: 27017
+---
+# App 10: Old Python/Flask with Jinja2 SSTI potential
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-python
+  namespace: insecure-demo
+  labels:
+    app: vuln-python
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-python
+  template:
+    metadata:
+      labels:
+        app: vuln-python
+    spec:
+      containers:
+      - name: python
+        image: docker.io/python:2.7-slim
+        command: ["python", "-m", "SimpleHTTPServer", "8000"]
+        ports:
+        - containerPort: 8000
+        securityContext:
+          runAsUser: 0
+          readOnlyRootFilesystem: false
+        env:
+        - name: SECRET_KEY
+          value: "changeme-this-is-insecure"
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+---
+# App 11: Old MySQL with weak root password
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-mysql
+  namespace: insecure-demo
+  labels:
+    app: vuln-mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-mysql
+  template:
+    metadata:
+      labels:
+        app: vuln-mysql
+    spec:
+      containers:
+      - name: mysql
+        image: docker.io/mysql:5.6
+        ports:
+        - containerPort: 3306
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "root"
+        - name: MYSQL_DATABASE
+          value: "appdb"
+        securityContext:
+          runAsUser: 0
+          readOnlyRootFilesystem: false
+---
+# App 12: Crypto miner lookalike - triggers runtime/process policies
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-miner
+  namespace: insecure-demo
+  labels:
+    app: vuln-miner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-miner
+  template:
+    metadata:
+      labels:
+        app: vuln-miner
+    spec:
+      containers:
+      - name: miner
+        image: docker.io/ubuntu:18.04
+        command:
+        - /bin/bash
+        - -c
+        - |
+          apt-get update && apt-get install -y curl netcat &&
+          while true; do echo "mining..."; sleep 60; done
+        ports:
+        - containerPort: 3333
+          name: stratum
+        securityContext:
+          runAsUser: 0
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: true
+        env:
+        - name: MINING_POOL
+          value: "stratum+tcp://pool.example.com:3333"
+        - name: WALLET_ADDRESS
+          value: "0xdeadbeef1234567890"
+---
+# App 13: Privileged pod with kubectl - RBAC abuse scenario
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: overprivileged-sa
+  namespace: insecure-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: insecure-demo-cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: overprivileged-sa
+  namespace: insecure-demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-kubectl
+  namespace: insecure-demo
+  labels:
+    app: vuln-kubectl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-kubectl
+  template:
+    metadata:
+      labels:
+        app: vuln-kubectl
+    spec:
+      serviceAccountName: overprivileged-sa
+      automountServiceAccountToken: true
+      containers:
+      - name: kubectl
+        image: docker.io/bitnami/kubectl:1.23
+        command: ["sleep", "infinity"]
+        securityContext:
+          runAsUser: 0
+          readOnlyRootFilesystem: false
