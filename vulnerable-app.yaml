@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: insecure-demo
+  labels:
+    app: vulnerable-demo
+---
+# Deployment 1: Old nginx with many CVEs, running as root, privileged
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-nginx
+  namespace: insecure-demo
+  labels:
+    app: vuln-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-nginx
+  template:
+    metadata:
+      labels:
+        app: vuln-nginx
+    spec:
+      containers:
+      - name: nginx
+        image: docker.io/nginx:1.14
+        ports:
+        - containerPort: 80
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          allowPrivilegeEscalation: true
+        env:
+        - name: DATABASE_PASSWORD
+          value: "supersecretpassword123"
+        - name: API_KEY
+          value: "AKIAIOSFODNN7EXAMPLE"
+        volumeMounts:
+        - name: host-etc
+          mountPath: /host-etc
+          readOnly: true
+      volumes:
+      - name: host-etc
+        hostPath:
+          path: /etc
+---
+# Deployment 2: Old log4j-vulnerable Java image
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-log4j
+  namespace: insecure-demo
+  labels:
+    app: vuln-log4j
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-log4j
+  template:
+    metadata:
+      labels:
+        app: vuln-log4j
+    spec:
+      containers:
+      - name: log4j-app
+        image: docker.io/library/elasticsearch:7.16.1
+        ports:
+        - containerPort: 9200
+        securityContext:
+          runAsUser: 0
+          readOnlyRootFilesystem: false
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+---
+# Deployment 3: Alpine with curl + writable filesystem + latest tag
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-shell
+  namespace: insecure-demo
+  labels:
+    app: vuln-shell
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vuln-shell
+  template:
+    metadata:
+      labels:
+        app: vuln-shell
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+      - name: shell
+        image: docker.io/ubuntu:18.04
+        command: ["sleep", "infinity"]
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          capabilities:
+            add:
+            - SYS_ADMIN
+            - NET_ADMIN
+            - SYS_PTRACE
+        volumeMounts:
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+        - name: host-root
+          mountPath: /host
+      volumes:
+      - name: docker-sock
+        hostPath:
+          path: /var/run/docker.sock
+      - name: host-root
+        hostPath:
+          path: /
+---
+# Service exposing vuln-nginx
+apiVersion: v1
+kind: Service
+metadata:
+  name: vuln-nginx-svc
+  namespace: insecure-demo
+spec:
+  selector:
+    app: vuln-nginx
+  ports:
+  - port: 80
+    targetPort: 80
