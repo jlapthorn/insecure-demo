@@ -5,7 +5,7 @@ metadata:
   labels:
     app: vulnerable-demo
 ---
-# App 4: Spring4Shell vulnerable Spring Boot app
+# App 4: Old Tomcat with many CVEs (Ghostcat, RCE, path traversal)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
       - name: spring
-        image: docker.io/vulfocus/spring-core-rce-2022-22965:latest
+        image: docker.io/library/tomcat:8.5.0
         ports:
         - containerPort: 8080
         securityContext:
@@ -369,7 +369,7 @@ spec:
       automountServiceAccountToken: true
       containers:
       - name: kubectl
-        image: docker.io/bitnami/kubectl:1.23
+        image: docker.io/alpine:3.14
         command: ["sleep", "infinity"]
         securityContext:
           runAsUser: 0
